@@ -1,0 +1,136 @@
+<?php
+
+/**
+ * @file
+ * Contains d8_progress_tracking.module.
+ */
+
+use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Routing\RouteMatchInterface;
+
+/**
+ * Implements hook_help().
+ */
+function d8_progress_tracking_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    // Main module help for the d8_progress_tracking module.
+    case 'help.page.d8_progress_tracking':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('RESTful api for tracking a user&#039;&#039;s progress for a given content item.') . '</p>';
+      return $output;
+
+    default:
+  }
+}
+
+function d8_progress_tracking_preprocess_node(&$variables) {
+  if (isset($variables['elements']['#node'])) {
+    $route_name = \Drupal::routeMatch()->getRouteName();
+
+    switch ($route_name) {
+      case 'entity.node.canonical':
+        $route_node = \Drupal::routeMatch()->getParameters()->get('node');
+
+        if ($variables['elements']['#node']->id() == $route_node->id()) {
+          $node = $variables['elements']['#node'];
+          if ($node->bundle() == 'instructional_video') {
+            $variables['#cache']['tags'][] = 'node:' . $node->id();
+            $variables['#cache']['tags'][] = 'context:' . $node->id();
+            $variables['#cache']['tags'][] = 'viewing_type: standalone';
+            $variables['#cache']['contexts'][] = 'route';
+          }
+        }
+        break;
+
+      case 'd8_collections.in_progress.item':
+        $collection_item_node = \Drupal::routeMatch()->getParameters()->get('paragraph')->get('field_node_reference')->entity;
+
+        if ($variables['elements']['#node']->id() == $collection_item_node->id()) {
+          $node = $variables['elements']['#node'];
+
+          if ($node->bundle() == 'instructional_video') {
+            $route_parameters = \Drupal::routeMatch()->getParameters();
+            $variables['#cache']['tags'][] = 'collection:' . $route_parameters->get('collection')->id();
+            $variables['#cache']['tags'][] = 'paragraph:' . $route_parameters->get('paragraph')->id();
+            $variables['#cache']['tags'][] = 'context:' . $route_parameters->get('paragraph')->id();
+            $variables['#cache']['tags'][] = 'viewing_type: collection';
+            $variables['#cache']['contexts'][] = 'route';
+          }
+        }
+        break;
+    }
+
+  }
+}
+
+function d8_progress_tracking_node_view_alter(array &$build, EntityInterface $node, EntityViewDisplayInterface $display) {
+  if ($node->bundle() == 'instructional_video') {
+    $route_name = \Drupal::routeMatch()->getRouteName();
+
+    switch ($route_name) {
+      case 'entity.node.canonical':
+        $route_node = \Drupal::routeMatch()->getParameters()->get('node');
+
+        if ($node->id() == $route_node->id()) {
+          $build['#attached']['drupalSettings']['nid'] = $node->id();
+          $build['#attached']['drupalSettings']['viewing_type'] = 'standalone';
+
+          $build['#attached']['library'][] = 'd8_progress_tracking/progress_tracking';
+        }
+        break;
+
+      case 'd8_collections.in_progress.item':
+        $collection_item_node = \Drupal::routeMatch()->getParameters()->get('paragraph')->get('field_node_reference')->entity;
+
+        if ($node->id() == $collection_item_node->id()) {
+          $route_parameters = \Drupal::routeMatch()->getParameters();
+
+          $build['#attached']['drupalSettings']['nid'] = $node->id();
+          $build['#attached']['drupalSettings']['viewing_type'] = 'collection';
+          $build['#attached']['drupalSettings']['collection_id'] = $route_parameters->get('collection')->id();
+          $build['#attached']['drupalSettings']['collection_item_paragraph_id'] = $route_parameters->get('paragraph')->id();
+
+          $build['#attached']['library'][] = 'd8_progress_tracking/progress_tracking';
+        }
+        break;
+    }
+
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_presave().
+ */
+function d8_progress_tracking_progress_entity_presave(\Drupal\d8_progress_entity\Entity\ProgressEntityInterface $progress_entity) {
+  switch ($progress_entity->bundle()) {
+    case 'video_progress':
+      if ($progress_entity->get('field_video_date_completed')->isEmpty()
+        && $progress_entity->get('field_video_percentage_viewed')->value == 100) {
+        $progress_entity->set(
+          'field_video_date_completed',
+          date('Y-m-d\TH:i:s', time())
+        );
+      }
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_update()
+ */
+function d8_progress_tracking_progress_entity_update(\Drupal\d8_progress_entity\Entity\ProgressEntityInterface $progress_entity) {
+  switch ($progress_entity->bundle()) {
+    case 'video_progress':
+      if (!$progress_entity->hasField('field_video_date_completed')
+        || $progress_entity->get('field_video_date_completed')->isEmpty()) {
+        break;
+      }
+
+      $collection_item_progress = $progress_entity->get('field_video_collection_item_prog')->entity;
+      \Drupal::service('d8_progress_entity.collection_item_progress_manager')
+        ->markCompleted($collection_item_progress, 'viewed');
+      break;
+  }
+}
+

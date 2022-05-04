@@ -1,0 +1,11 @@
+progress_tracking:
+  js:
+    js/progress_tracking.js: {}
+  dependencies:
+    - core/drupalSettings
+
+completion_checkboxes:
+  js:
+    js/completion_checkboxes.js: {}
+  dependencies:
+    - core/drupalSettings

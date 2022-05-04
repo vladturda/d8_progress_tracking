@@ -1,0 +1,8 @@
+name: 'Progress Tracking'
+type: module
+description: 'RESTful API for tracking a user''s progress for a given content item.'
+core: 8.x
+package: 'D8'
+dependencies:
+  - rest
+  - d8_progress_entity

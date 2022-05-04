@@ -1,0 +1,22 @@
+langcode: en
+status: true
+dependencies:
+  enforced:
+    module: 
+      - d8_progress_tracking
+  module:
+    - d8_progress_tracking
+    - serialization
+    - user
+id: progress_entity_rest_resource
+plugin_id: progress_entity_rest_resource
+granularity: resource
+configuration:
+  methods:
+    - GET
+    - POST
+    - PATCH
+  formats:
+    - json
+  authentication:
+    - cookie
